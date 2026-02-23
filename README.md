@@ -79,6 +79,56 @@ python create_map_poster.py --city <city> --country <country> [options]
 | **OPTIONAL:** `--all-themes` | | Generate posters for all available themes | |
 | **OPTIONAL:** `--width` | `-W` | Image width in inches | 12 (max: 20) |
 | **OPTIONAL:** `--height` | `-H` | Image height in inches | 16 (max: 20) |
+| **OPTIONAL:** `--device` | | Device preset for wallpaper-sized output | |
+| **OPTIONAL:** `--list-devices` | | List all available device presets | |
+
+### Device Presets
+
+Generate wallpaper-ready posters sized exactly for your device's screen resolution. Use `--device` to select a preset:
+
+```bash
+# Phone wallpaper
+python create_map_poster.py -c "Tokyo" -C "Japan" --device iphone-16-pro-max -t noir
+
+# Tablet wallpaper
+python create_map_poster.py -c "Paris" -C "France" --device ipad-pro-13 -t sunset
+
+# Desktop wallpaper
+python create_map_poster.py -c "New York" -C "USA" --device macbook-pro-16 -t midnight_blue
+
+# List all available devices
+python create_map_poster.py --list-devices
+```
+
+**Available Devices:**
+
+| Category | Device | Resolution |
+|----------|--------|------------|
+| Phone | `iphone-16-pro-max` | 1320x2868 |
+| Phone | `iphone-16-pro` | 1206x2622 |
+| Phone | `iphone-16` | 1179x2556 |
+| Phone | `iphone-15` | 1179x2556 |
+| Phone | `iphone-13-pro-max` | 1284x2778 |
+| Phone | `iphone-se` | 750x1334 |
+| Phone | `galaxy-s24-ultra` | 1440x3120 |
+| Phone | `galaxy-s24` | 1080x2340 |
+| Phone | `pixel-9-pro` | 1280x2856 |
+| Phone | `pixel-9` | 1080x2424 |
+| Tablet | `ipad-pro-13` | 2064x2752 |
+| Tablet | `ipad-pro-11` | 1668x2388 |
+| Tablet | `ipad-air` | 1640x2360 |
+| Tablet | `ipad-mini` | 1488x2266 |
+| Tablet | `galaxy-tab-s9` | 1600x2560 |
+| Computer | `macbook-pro-16` | 3456x2234 |
+| Computer | `macbook-pro-14` | 3024x1964 |
+| Computer | `macbook-air-15` | 2880x1864 |
+| Computer | `macbook-air-13` | 2560x1664 |
+| Computer | `imac-24` | 4480x2520 |
+| Computer | `4k-monitor` | 3840x2160 |
+| Computer | `qhd-monitor` | 2560x1440 |
+| Computer | `fhd-monitor` | 1920x1080 |
+
+**Note:** `--device` overrides `--width` and `--height`. The output PNG matches the device's exact pixel resolution.
 
 ### Multilingual Support - i18n
 
@@ -224,6 +274,35 @@ python create_map_poster.py -c "Tokyo" -C "Japan" --all-themes
 | `autumn` | Seasonal burnt oranges and reds |
 | `copper_patina` | Oxidized copper aesthetic |
 | `monochrome_blue` | Single blue color family |
+
+## Travel Route Map
+
+Overlay a travel route on your map poster. Provide a list of stops and the poster draws a connected line through them with markers.
+
+```bash
+# Route through Paris with labels
+python create_map_poster.py -c "Paris" -C "France" -t noir -d 10000 \
+  --route "Eiffel Tower, Louvre, Notre-Dame, Sacre-Coeur" --route-labels
+
+# Custom route color and width
+python create_map_poster.py -c "Rome" -C "Italy" -t warm_beige -d 8000 \
+  --route "Colosseum, Trevi Fountain, Pantheon, Spanish Steps" \
+  --route-color "#E74C3C" --route-width 4.0
+
+# Combine with device preset
+python create_map_poster.py -c "Tokyo" -C "Japan" -t japanese_ink \
+  --device iphone-16-pro-max \
+  --route "Shibuya Crossing, Meiji Shrine, Tokyo Tower, Senso-ji" --route-labels
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--route` | Comma-separated stop names | |
+| `--route-color` | Route line color (hex) | Theme text color |
+| `--route-width` | Route line width | 3.0 |
+| `--route-labels` | Show text labels at each stop | Off |
+
+**Note:** Stops are geocoded relative to the city (e.g., "Eiffel Tower" is searched as "Eiffel Tower, Paris, France"). Results are cached for fast re-runs.
 
 ## Output
 
@@ -396,3 +475,16 @@ G = ox.graph_from_point(point, dist=dist, network_type='walk')   # pedestrian
 - Cache coordinates locally to avoid Nominatim rate limits
 - Use `network_type='drive'` instead of `'all'` for faster renders
 - Reduce `dpi` from 300 to 150 for quick previews
+
+## Roadmap
+
+Future features under consideration:
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Travel Route Map** | Overlay a connected route through named stops on the map | Done |
+| **Personal Pins** | Mark favorite spots (home, cafe, gym) with dots/icons using `--pins "lat,lon:Label"` | Planned |
+| **Dual Theme (Day/Night)** | Generate a side-by-side or split poster with dark + light themes of the same city | Planned |
+| **Time-lapse City Growth** | Show how a city's road network expands using opacity layers (historical vs modern) | Planned |
+| **Multi-City Grid** | Generate a grid poster of 2, 4, or 6 cities together with `--cities` and `--grid` | Planned |
+| **Elevation/Terrain Layer** | Add subtle hill shading or contour lines using elevation data | Planned |

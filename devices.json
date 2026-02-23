@@ -1,0 +1,165 @@
+{
+  "devices": [
+    {
+      "id": "iphone-16-pro-max",
+      "name": "iPhone 16 Pro Max",
+      "category": "phone",
+      "width_px": 1320,
+      "height_px": 2868
+    },
+    {
+      "id": "iphone-16-pro",
+      "name": "iPhone 16 Pro",
+      "category": "phone",
+      "width_px": 1206,
+      "height_px": 2622
+    },
+    {
+      "id": "iphone-16",
+      "name": "iPhone 16",
+      "category": "phone",
+      "width_px": 1179,
+      "height_px": 2556
+    },
+    {
+      "id": "iphone-15",
+      "name": "iPhone 15",
+      "category": "phone",
+      "width_px": 1179,
+      "height_px": 2556
+    },
+    {
+      "id": "iphone-13-pro-max",
+      "name": "iPhone 13 Pro Max",
+      "category": "phone",
+      "width_px": 1284,
+      "height_px": 2778
+    },
+    {
+      "id": "iphone-se",
+      "name": "iPhone SE",
+      "category": "phone",
+      "width_px": 750,
+      "height_px": 1334
+    },
+    {
+      "id": "galaxy-s24-ultra",
+      "name": "Samsung Galaxy S24 Ultra",
+      "category": "phone",
+      "width_px": 1440,
+      "height_px": 3120
+    },
+    {
+      "id": "galaxy-s24",
+      "name": "Samsung Galaxy S24",
+      "category": "phone",
+      "width_px": 1080,
+      "height_px": 2340
+    },
+    {
+      "id": "pixel-9-pro",
+      "name": "Google Pixel 9 Pro",
+      "category": "phone",
+      "width_px": 1280,
+      "height_px": 2856
+    },
+    {
+      "id": "pixel-9",
+      "name": "Google Pixel 9",
+      "category": "phone",
+      "width_px": 1080,
+      "height_px": 2424
+    },
+    {
+      "id": "ipad-pro-13",
+      "name": "iPad Pro 13\"",
+      "category": "tablet",
+      "width_px": 2064,
+      "height_px": 2752
+    },
+    {
+      "id": "ipad-pro-11",
+      "name": "iPad Pro 11\"",
+      "category": "tablet",
+      "width_px": 1668,
+      "height_px": 2388
+    },
+    {
+      "id": "ipad-air",
+      "name": "iPad Air",
+      "category": "tablet",
+      "width_px": 1640,
+      "height_px": 2360
+    },
+    {
+      "id": "ipad-mini",
+      "name": "iPad mini",
+      "category": "tablet",
+      "width_px": 1488,
+      "height_px": 2266
+    },
+    {
+      "id": "galaxy-tab-s9",
+      "name": "Samsung Galaxy Tab S9",
+      "category": "tablet",
+      "width_px": 1600,
+      "height_px": 2560
+    },
+    {
+      "id": "macbook-pro-16",
+      "name": "MacBook Pro 16\"",
+      "category": "computer",
+      "width_px": 3456,
+      "height_px": 2234
+    },
+    {
+      "id": "macbook-pro-14",
+      "name": "MacBook Pro 14\"",
+      "category": "computer",
+      "width_px": 3024,
+      "height_px": 1964
+    },
+    {
+      "id": "macbook-air-15",
+      "name": "MacBook Air 15\"",
+      "category": "computer",
+      "width_px": 2880,
+      "height_px": 1864
+    },
+    {
+      "id": "macbook-air-13",
+      "name": "MacBook Air 13\"",
+      "category": "computer",
+      "width_px": 2560,
+      "height_px": 1664
+    },
+    {
+      "id": "imac-24",
+      "name": "iMac 24\"",
+      "category": "computer",
+      "width_px": 4480,
+      "height_px": 2520
+    },
+    {
+      "id": "4k-monitor",
+      "name": "4K Monitor",
+      "category": "computer",
+      "width_px": 3840,
+      "height_px": 2160
+    },
+    {
+      "id": "qhd-monitor",
+      "name": "QHD Monitor",
+      "category": "computer",
+      "width_px": 2560,
+      "height_px": 1440
+    },
+    {
+      "id": "fhd-monitor",
+      "name": "Full HD Monitor",
+      "category": "computer",
+      "width_px": 1920,
+      "height_px": 1080
+    }
+  ]
+}

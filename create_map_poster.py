@@ -44,6 +44,7 @@ CACHE_DIR.mkdir(exist_ok=True)
 THEMES_DIR = "themes"
 FONTS_DIR = "fonts"
 POSTERS_DIR = "posters"
+DEVICES_FILE = "devices.json"
 
 FILE_ENCODING = "utf-8"
 
@@ -207,6 +208,52 @@ def load_theme(theme_name="terracotta"):
         return theme
 
 
+def load_devices():
+    """Load device presets from devices.json."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    devices_path = os.path.join(script_dir, DEVICES_FILE)
+    if not os.path.exists(devices_path):
+        print(f"Warning: Device presets file '{DEVICES_FILE}' not found.")
+        return []
+    with open(devices_path, "r", encoding=FILE_ENCODING) as f:
+        data = json.load(f)
+    return data.get("devices", [])
+
+
+def get_device_by_id(device_id):
+    """Look up a device preset by its ID. Returns the device dict or None."""
+    devices = load_devices()
+    for device in devices:
+        if device["id"] == device_id:
+            return device
+    return None
+
+
+def list_devices():
+    """List all available device presets, grouped by category."""
+    devices = load_devices()
+    if not devices:
+        print("No device presets found.")
+        return
+
+    categories = {"phone": "Phones", "tablet": "Tablets", "computer": "Computers / Monitors"}
+    grouped = {}
+    for device in devices:
+        cat = device.get("category", "other")
+        grouped.setdefault(cat, []).append(device)
+
+    print("\nAvailable Device Presets:")
+    print("=" * 60)
+    for cat_key in ["phone", "tablet", "computer"]:
+        if cat_key not in grouped:
+            continue
+        print(f"\n  {categories.get(cat_key, cat_key)}:")
+        print(f"  {'-' * 56}")
+        for d in grouped[cat_key]:
+            print(f"    {d['id']:<25} {d['name']:<30} {d['width_px']}x{d['height_px']}")
+    print()
+
+
 # Load theme (can be changed via command line or input)
 THEME = dict[str, str]()  # Will be loaded later
 
@@ -250,6 +297,80 @@ def create_gradient_fade(ax, color, location="bottom", zorder=10):
         zorder=zorder,
         origin="lower",
     )
+
+
+def plot_route(ax, route_points, route_labels, g_proj, route_color, route_width,
+               label_font=None, scale_factor=1.0):
+    """
+    Plot a travel route as a connected line with stop markers on the map.
+
+    Args:
+        ax: Matplotlib axes to draw on
+        route_points: List of (lat, lon) tuples for each stop
+        route_labels: List of label strings, or None to skip labels
+        g_proj: Projected graph (used to get target CRS)
+        route_color: Hex color string for route line and markers
+        route_width: Line width for the route
+        label_font: FontProperties for labels, or None
+        scale_factor: Scale factor for marker/label sizing
+    """
+    target_crs = g_proj.graph["crs"]
+
+    # Project all route points from WGS84 to the map's CRS
+    projected_xs = []
+    projected_ys = []
+    for lat, lon in route_points:
+        projected_point = ox.projection.project_geometry(
+            Point(lon, lat),
+            crs="EPSG:4326",
+            to_crs=target_crs,
+        )[0]
+        projected_xs.append(projected_point.x)
+        projected_ys.append(projected_point.y)
+
+    # Draw connecting line (z=5: above roads at z=3, below gradients at z=10)
+    ax.plot(
+        projected_xs,
+        projected_ys,
+        color=route_color,
+        linewidth=route_width,
+        solid_capstyle="round",
+        solid_joinstyle="round",
+        zorder=5,
+        alpha=0.85,
+    )
+
+    # Draw circle markers at each stop
+    marker_size = 30 * scale_factor
+    ax.scatter(
+        projected_xs,
+        projected_ys,
+        c=route_color,
+        s=marker_size,
+        zorder=5.1,
+        edgecolors="white",
+        linewidths=1.0 * scale_factor,
+    )
+
+    # Optional text labels
+    if route_labels:
+        for i, label in enumerate(route_labels):
+            ax.annotate(
+                label,
+                (projected_xs[i], projected_ys[i]),
+                textcoords="offset points",
+                xytext=(6 * scale_factor, 6 * scale_factor),
+                fontproperties=label_font,
+                color=route_color,
+                fontsize=7 * scale_factor,
+                zorder=5.2,
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="white",
+                    alpha=0.7,
+                    edgecolor="none",
+                ),
+            )
 
 
 def get_edge_colors_by_type(g):
@@ -368,6 +489,64 @@ def get_coordinates(city, country):
         return (location.latitude, location.longitude)
 
     raise ValueError(f"Could not find coordinates for {city}, {country}")
+
+
+def geocode_route_stops(stops, city, country):
+    """
+    Geocode a list of place name strings relative to a city.
+
+    Each stop is geocoded as "{stop}, {city}, {country}" using Nominatim.
+    Results are cached individually.
+
+    Args:
+        stops: List of place name strings (e.g. ["Eiffel Tower", "Louvre"])
+        city: City name for context
+        country: Country name for context
+
+    Returns:
+        List of (lat, lon) tuples, one per stop
+
+    Raises:
+        ValueError: If any stop cannot be geocoded
+    """
+    geolocator = Nominatim(user_agent="city_map_poster", timeout=10)
+    results = []
+
+    for stop in stops:
+        stop_clean = stop.strip()
+        cache_key = f"route_stop_{stop_clean.lower()}_{city.lower()}_{country.lower()}"
+        cached = cache_get(cache_key)
+        if cached:
+            print(f"  ✓ Cached: {stop_clean}")
+            results.append(cached)
+            continue
+
+        query = f"{stop_clean}, {city}, {country}"
+        print(f"  Geocoding: {query}...")
+        time.sleep(1)  # Respect Nominatim rate limit
+
+        try:
+            location = geolocator.geocode(query)
+        except Exception as e:
+            raise ValueError(f"Geocoding failed for '{stop_clean}': {e}") from e
+
+        if asyncio.iscoroutine(location):
+            location = asyncio.run(location)
+
+        if location is None:
+            raise ValueError(
+                f"Could not find coordinates for '{stop_clean}' in {city}, {country}"
+            )
+
+        coord = (location.latitude, location.longitude)
+        print(f"  ✓ Found: {stop_clean} at {coord[0]:.5f}, {coord[1]:.5f}")
+        try:
+            cache_set(cache_key, coord)
+        except CacheError as e:
+            print(e)
+        results.append(coord)
+
+    return results
 
 
 def get_crop_limits(g_proj, center_lat_lon, fig, dist):
@@ -493,6 +672,12 @@ def create_poster(
     display_city=None,
     display_country=None,
     fonts=None,
+    dpi=300,
+    device_mode=False,
+    route_points=None,
+    route_labels=None,
+    route_color=None,
+    route_width=3.0,
 ):
     """
     Generate a complete map poster with roads, water, parks, and typography.
@@ -565,6 +750,9 @@ def create_poster(
     ax.set_facecolor(THEME["bg"])
     ax.set_position((0.0, 0.0, 1.0, 1.0))
 
+    # Calculate scale factor early (needed for route rendering and typography)
+    scale_factor = min(height, width) / 12.0
+
     # Project graph to a metric CRS so distances and aspect are linear (meters)
     g_proj = ox.project_graph(g)
 
@@ -611,13 +799,34 @@ def create_poster(
     ax.set_xlim(crop_xlim)
     ax.set_ylim(crop_ylim)
 
+    # Layer 2.5: Travel Route (between roads and gradients)
+    if route_points:
+        effective_route_color = route_color or THEME.get("route_line", THEME["text"])
+
+        active_fonts_route = fonts or FONTS
+        if active_fonts_route:
+            route_label_font = FontProperties(
+                fname=active_fonts_route["light"], size=7 * scale_factor
+            )
+        else:
+            route_label_font = FontProperties(
+                family="monospace", size=7 * scale_factor
+            )
+
+        plot_route(
+            ax=ax,
+            route_points=route_points,
+            route_labels=route_labels,
+            g_proj=g_proj,
+            route_color=effective_route_color,
+            route_width=route_width,
+            label_font=route_label_font,
+            scale_factor=scale_factor,
+        )
+
     # Layer 3: Gradients (Top and Bottom)
     create_gradient_fade(ax, THEME['gradient_color'], location='bottom', zorder=10)
     create_gradient_fade(ax, THEME['gradient_color'], location='top', zorder=10)
-
-    # Calculate scale factor based on smaller dimension (reference 12 inches)
-    # This ensures text scales properly for both portrait and landscape orientations
-    scale_factor = min(height, width) / 12.0
 
     # Base font sizes (at 12 inches width)
     base_main = 60
@@ -756,15 +965,24 @@ def create_poster(
     print(f"Saving to {output_file}...")
 
     fmt = output_format.lower()
-    save_kwargs = dict(
-        facecolor=THEME["bg"],
-        bbox_inches="tight",
-        pad_inches=0.05,
-    )
+
+    if device_mode:
+        # In device mode, use exact bounding box to preserve pixel dimensions
+        save_kwargs = dict(
+            facecolor=THEME["bg"],
+            bbox_inches=None,
+            pad_inches=0,
+        )
+    else:
+        save_kwargs = dict(
+            facecolor=THEME["bg"],
+            bbox_inches="tight",
+            pad_inches=0.05,
+        )
 
     # DPI matters mainly for raster formats
     if fmt == "png":
-        save_kwargs["dpi"] = 300
+        save_kwargs["dpi"] = dpi
 
     plt.savefig(output_file, format=fmt, **save_kwargs)
 
@@ -809,8 +1027,23 @@ Examples:
   python create_map_poster.py -c "London" -C "UK" -t noir -d 15000              # Thames curves
   python create_map_poster.py -c "Budapest" -C "Hungary" -t copper_patina -d 8000  # Danube split
 
-  # List themes
+  # Device wallpapers
+  python create_map_poster.py -c "Tokyo" -C "Japan" --device iphone-16-pro-max -t noir
+  python create_map_poster.py -c "Paris" -C "France" --device macbook-pro-16 -t midnight_blue
+  python create_map_poster.py -c "New York" -C "USA" --device ipad-pro-13 -t sunset
+
+  # Travel route through a city
+  python create_map_poster.py -c "Paris" -C "France" -t noir -d 10000 \\
+    --route "Eiffel Tower, Louvre, Notre-Dame, Sacre-Coeur" --route-labels
+
+  # Custom route color and width
+  python create_map_poster.py -c "Rome" -C "Italy" -t warm_beige -d 8000 \\
+    --route "Colosseum, Trevi Fountain, Pantheon, Spanish Steps" \\
+    --route-color "#E74C3C" --route-width 4.0
+
+  # List themes and devices
   python create_map_poster.py --list-themes
+  python create_map_poster.py --list-devices
 
 Options:
   --city, -c        City name (required)
@@ -819,7 +1052,13 @@ Options:
   --theme, -t       Theme name (default: terracotta)
   --all-themes      Generate posters for all themes
   --distance, -d    Map radius in meters (default: 18000)
+  --device          Device preset for wallpaper-sized output
+  --route           Comma-separated stops for travel route overlay
+  --route-color     Route line color (hex, default: theme text color)
+  --route-width     Route line width (default: 3.0)
+  --route-labels    Show text labels at each route stop
   --list-themes     List all available themes
+  --list-devices    List all available device presets
 
 Distance guide:
   4000-6000m   Small/dense cities (Venice, Amsterdam old center)
@@ -955,6 +1194,41 @@ Examples:
         choices=["png", "svg", "pdf"],
         help="Output format for the poster (default: png)",
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        help="Device preset for wallpaper-sized output (e.g., 'iphone-16-pro-max'). Use --list-devices to see all options.",
+    )
+    parser.add_argument(
+        "--list-devices",
+        action="store_true",
+        help="List all available device presets",
+    )
+    parser.add_argument(
+        "--route",
+        type=str,
+        help='Comma-separated list of stops, e.g. "Eiffel Tower, Louvre, Notre-Dame"',
+    )
+    parser.add_argument(
+        "--route-color",
+        dest="route_color",
+        type=str,
+        default=None,
+        help="Route line color as hex (e.g. #FF5733). Defaults to theme text color.",
+    )
+    parser.add_argument(
+        "--route-width",
+        dest="route_width",
+        type=float,
+        default=3.0,
+        help="Route line width (default: 3.0)",
+    )
+    parser.add_argument(
+        "--route-labels",
+        dest="route_labels",
+        action="store_true",
+        help="Show text labels at each route stop",
+    )
 
     args = parser.parse_args()
 
@@ -968,23 +1242,61 @@ Examples:
         list_themes()
         sys.exit(0)
 
+    # List devices if requested
+    if args.list_devices:
+        list_devices()
+        sys.exit(0)
+
     # Validate required arguments
     if not args.city or not args.country:
         print("Error: --city and --country are required.\n")
         print_examples()
         sys.exit(1)
 
-    # Enforce maximum dimensions
-    if args.width > 20:
-        print(
-            f"⚠ Width {args.width} exceeds the maximum allowed limit of 20. It's enforced as max limit 20."
-        )
-        args.width = 20.0
-    if args.height > 20:
-        print(
-            f"⚠ Height {args.height} exceeds the maximum allowed limit of 20. It's enforced as max limit 20."
-        )
-        args.height = 20.0
+    # Handle device preset
+    device_mode = False
+    device_dpi = 300
+
+    if args.device:
+        device = get_device_by_id(args.device)
+        if device is None:
+            available = load_devices()
+            ids = [d["id"] for d in available]
+            print(f"Error: Device '{args.device}' not found.")
+            print(f"Available devices: {', '.join(ids)}")
+            print("Use --list-devices to see all options.")
+            sys.exit(1)
+
+        device_mode = True
+        px_w = device["width_px"]
+        px_h = device["height_px"]
+
+        # Use DPI that keeps the larger dimension at 16 inches (matching default poster height)
+        # This ensures font scaling stays in a reasonable range
+        device_dpi = max(px_w, px_h) / 16.0
+        device_dpi = max(device_dpi, 72)  # floor at 72 DPI minimum
+
+        args.width = px_w / device_dpi
+        args.height = px_h / device_dpi
+
+        print(f"Device: {device['name']} ({px_w}x{px_h} px)")
+        print(f"  Computed: {args.width:.2f} x {args.height:.2f} inches @ {device_dpi:.0f} DPI")
+
+        if "--width" in sys.argv or "-W" in sys.argv or "--height" in sys.argv or "-H" in sys.argv:
+            print("Note: --device overrides --width and --height settings.")
+
+    # Enforce maximum dimensions (skip in device mode)
+    if not device_mode:
+        if args.width > 20:
+            print(
+                f"⚠ Width {args.width} exceeds the maximum allowed limit of 20. It's enforced as max limit 20."
+            )
+            args.width = 20.0
+        if args.height > 20:
+            print(
+                f"⚠ Height {args.height} exceeds the maximum allowed limit of 20. It's enforced as max limit 20."
+            )
+            args.height = 20.0
 
     available_themes = get_available_themes()
     if not available_themes:
@@ -1021,6 +1333,17 @@ Examples:
         else:
             coords = get_coordinates(args.city, args.country)
 
+        # Geocode route stops if provided
+        route_points = None
+        route_labels_list = None
+        if args.route:
+            stops = [s.strip() for s in args.route.split(",")]
+            print(f"\nGeocoding {len(stops)} route stops...")
+            route_points = geocode_route_stops(stops, args.city, args.country)
+            if args.route_labels:
+                route_labels_list = stops
+            print(f"✓ All {len(stops)} stops geocoded successfully!")
+
         for theme_name in themes_to_generate:
             THEME = load_theme(theme_name)
             output_file = generate_output_filename(args.city, theme_name, args.format)
@@ -1037,6 +1360,12 @@ Examples:
                 display_city=args.display_city,
                 display_country=args.display_country,
                 fonts=custom_fonts,
+                dpi=device_dpi,
+                device_mode=device_mode,
+                route_points=route_points,
+                route_labels=route_labels_list,
+                route_color=args.route_color,
+                route_width=args.route_width,
             )
 
         print("\n" + "=" * 50)
