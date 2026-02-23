@@ -353,7 +353,7 @@ def plot_route(ax, route_points, route_labels, g_proj, route_color, route_width,
     )
 
     # Optional text labels
-    if route_labels:
+    if route_labels and len(route_labels) == len(projected_xs):
         for i, label in enumerate(route_labels):
             ax.annotate(
                 label,
@@ -531,7 +531,16 @@ def geocode_route_stops(stops, city, country):
             raise ValueError(f"Geocoding failed for '{stop_clean}': {e}") from e
 
         if asyncio.iscoroutine(location):
-            location = asyncio.run(location)
+            try:
+                location = asyncio.run(location)
+            except RuntimeError as exc:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    raise RuntimeError(
+                        "Geocoder returned a coroutine while an event loop is already running. "
+                        "Run this script in a synchronous environment."
+                    ) from exc
+                location = loop.run_until_complete(location)
 
         if location is None:
             raise ValueError(
@@ -752,6 +761,7 @@ def create_poster(
 
     # Calculate scale factor early (needed for route rendering and typography)
     scale_factor = min(height, width) / 12.0
+    active_fonts = fonts or FONTS
 
     # Project graph to a metric CRS so distances and aspect are linear (meters)
     g_proj = ox.project_graph(g)
@@ -803,10 +813,9 @@ def create_poster(
     if route_points:
         effective_route_color = route_color or THEME.get("route_line", THEME["text"])
 
-        active_fonts_route = fonts or FONTS
-        if active_fonts_route:
+        if active_fonts:
             route_label_font = FontProperties(
-                fname=active_fonts_route["light"], size=7 * scale_factor
+                fname=active_fonts["light"], size=7 * scale_factor
             )
         else:
             route_label_font = FontProperties(
@@ -835,7 +844,6 @@ def create_poster(
     base_attr = 8
 
     # 4. Typography - use custom fonts if provided, otherwise use default FONTS
-    active_fonts = fonts or FONTS
     if active_fonts:
         # font_main is calculated dynamically later based on length
         font_sub = FontProperties(
@@ -944,9 +952,9 @@ def create_poster(
 
     # --- ATTRIBUTION (bottom right) ---
     if FONTS:
-        font_attr = FontProperties(fname=FONTS["light"], size=8)
+        font_attr_small = FontProperties(fname=FONTS["light"], size=8 * scale_factor)
     else:
-        font_attr = FontProperties(family="monospace", size=8)
+        font_attr_small = FontProperties(family="monospace", size=8 * scale_factor)
 
     ax.text(
         0.98,
@@ -957,7 +965,7 @@ def create_poster(
         alpha=0.5,
         ha="right",
         va="bottom",
-        fontproperties=font_attr,
+        fontproperties=font_attr_small,
         zorder=11,
     )
 
